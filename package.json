@@ -1,0 +1,26 @@
+{
+  "name": "service-bus-explorer-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Modern web-based Azure Service Bus Explorer built with React and NestJS",
+  "author": "Service Bus Explorer Team",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "api:dev": "turbo run dev --filter=api",
+    "web:dev": "turbo run dev --filter=web"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.5",
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
