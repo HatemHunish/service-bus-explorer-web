@@ -2,7 +2,7 @@ import { useParams } from 'react-router-dom';
 import { useState } from 'react';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/common/Button';
-import { useSubscription, useSubscriptionMessages, useRules } from '@/hooks/useServiceBus';
+import { useSubscription, useSubscriptionMessages, useSubscriptionDLQMessages, useRules } from '@/hooks/useServiceBus';
 
 export function SubscriptionDetailsPage() {
   const { topicName, subscriptionName } = useParams<{ topicName: string; subscriptionName: string }>();
@@ -11,6 +11,7 @@ export function SubscriptionDetailsPage() {
 
   const { data: subscription, isLoading, refetch } = useSubscription(decodedTopicName, decodedSubName);
   const { data: messages, refetch: refetchMessages } = useSubscriptionMessages(decodedTopicName, decodedSubName, 20);
+  const { data: dlqMessages, refetch: refetchDLQ } = useSubscriptionDLQMessages(decodedTopicName, decodedSubName, 20);
   const { data: rules } = useRules(decodedTopicName, decodedSubName);
 
   const [activeTab, setActiveTab] = useState<'properties' | 'messages' | 'rules' | 'dlq'>('properties');
@@ -188,8 +189,43 @@ export function SubscriptionDetailsPage() {
       )}
 
       {activeTab === 'dlq' && (
-        <div className="rounded-lg border bg-card p-4 text-center text-muted-foreground">
-          Dead-letter queue viewer coming soon
+        <div className="rounded-lg border">
+          <div className="flex items-center justify-between border-b p-3">
+            <h3 className="font-semibold">Dead-letter Messages</h3>
+            <Button variant="outline" size="sm" onClick={() => refetchDLQ()}>
+              <RefreshCw className="mr-1 h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
+          <div className="max-h-96 overflow-auto">
+            {!dlqMessages?.length ? (
+              <p className="p-4 text-center text-muted-foreground">No dead-letter messages</p>
+            ) : (
+              dlqMessages.map((msg, i) => (
+                <div key={msg.sequenceNumber || i} className="border-b p-3 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">#{msg.sequenceNumber}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(msg.enqueuedTime).toLocaleString()}
+                    </span>
+                  </div>
+                  {msg.deadLetterReason && (
+                    <p className="mt-1 text-sm text-destructive">
+                      Reason: {msg.deadLetterReason}
+                    </p>
+                  )}
+                  {msg.deadLetterErrorDescription && (
+                    <p className="text-xs text-muted-foreground">
+                      {msg.deadLetterErrorDescription}
+                    </p>
+                  )}
+                  <pre className="mt-2 max-h-24 overflow-auto rounded bg-muted p-2 text-xs">
+                    {msg.body}
+                  </pre>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>

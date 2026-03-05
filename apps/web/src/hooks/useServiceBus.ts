@@ -219,6 +219,17 @@ export function useSubscriptionMessages(topicName: string, name: string, count =
   });
 }
 
+export function useSubscriptionDLQMessages(topicName: string, name: string, count = 10) {
+  const { activeConnection } = useConnectionStore();
+
+  return useQuery<IReceivedMessage[]>({
+    queryKey: ['subscription-dlq-messages', topicName, name, count],
+    queryFn: () => subscriptionsApi.peekDLQ(topicName, name, count),
+    enabled: !!activeConnection && !!topicName && !!name,
+    refetchOnWindowFocus: false,
+  });
+}
+
 // Rules hooks
 export function useRules(topicName: string, subscriptionName: string) {
   const { activeConnection } = useConnectionStore();
