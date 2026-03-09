@@ -179,13 +179,11 @@ export class MatcherService {
         return actualValue.toLowerCase().endsWith(expectedValue.toLowerCase());
 
       case 'regex':
-        if (typeof expectedValue !== 'string') {
+        if (typeof expectedValue !== 'string' || expectedValue === '') {
           return false;
         }
         try {
-          const regex = new RegExp(expectedValue);
-          const strValue = String(actualValue ?? '');
-          return regex.test(strValue);
+          return new RegExp(expectedValue).test(String(actualValue ?? ''));
         } catch {
           return false;
         }

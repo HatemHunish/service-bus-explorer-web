@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
-import { ServiceBusReceivedMessage, ServiceBusMessage } from '@azure/service-bus';
+import { ServiceBusReceivedMessage, ServiceBusMessage, ServiceBusClient, ServiceBusReceiver } from '@azure/service-bus';
 import { IAutoReplyRule, IAutoReplyListenerStatus } from '@service-bus-explorer/shared';
 import { ConnectionsService } from '../connections/connections.service';
 import { AzureClientFactory } from '../connections/azure-client.factory';
@@ -10,8 +10,8 @@ import { TemplateService } from './template.service';
 interface ListenerInfo {
   ruleId: string;
   ruleName: string;
-  receiver: any;
-  subscription: any;
+  receiver: ServiceBusReceiver;
+  subscription: { close(): Promise<void> };
   startedAt: Date;
   messagesProcessed: number;
   messagesMatched: number;
@@ -200,16 +200,29 @@ export class AutoReplyListenerService implements OnModuleDestroy {
     const startTime = Date.now();
 
     try {
+      const { body: resendBody, applicationProperties: resendAppProps } =
+        this.parseReplyTemplate(log.replyBody, rule.reply.contentType);
       await sender.sendMessages({
-        body: this.parseReplyBody(log.replyBody, rule.reply.contentType),
-        messageId,
-        contentType: rule.reply.contentType,
-        correlationId: log.originalMessageId,
+        body: resendBody,
+        ...(resendAppProps ? { applicationProperties: resendAppProps } : {}),
       });
+    } catch (err) {
+      this.autoReplyService.logActivity({
+        ruleId: rule.id,
+        ruleName: rule.name,
+        originalMessageId: log.originalMessageId,
+        originalSequenceNumber: log.originalSequenceNumber,
+        originalBody: log.originalBody,
+        replyTarget: log.replyTarget,
+        status: 'failed',
+        errorMessage: (err as Error).message,
+        receivedAt: new Date(),
+        processingTimeMs: Date.now() - startTime,
+      });
+      throw err;
     } finally {
       await sender.close();
       // Do NOT close sbClient — it's a shared cached client managed by AzureClientFactory.
-      // Closing it here would kill any active listener using the same connection.
     }
 
     this.autoReplyService.logActivity({
@@ -235,7 +248,7 @@ export class AutoReplyListenerService implements OnModuleDestroy {
     rule: IAutoReplyRule,
     message: ServiceBusReceivedMessage,
     listenerInfo: ListenerInfo,
-    sbClient: any,
+    sbClient: ServiceBusClient,
   ): Promise<void> {
     const startTime = Date.now();
     listenerInfo.messagesProcessed++;
@@ -281,14 +294,16 @@ export class AutoReplyListenerService implements OnModuleDestroy {
       const replyBody = this.templateService.processTemplate(currentRule.reply.template, message);
       const replyMessageId = this.templateService.generateReplyMessageId();
 
-      const replyMessage: ServiceBusMessage = {
-        body: this.parseReplyBody(replyBody, currentRule.reply.contentType),
-        messageId: replyMessageId,
-        contentType: currentRule.reply.contentType,
-        correlationId: message.messageId as string,
-      };
+      const { body: parsedBody, applicationProperties: templateAppProps } =
+        this.parseReplyTemplate(replyBody, currentRule.reply.contentType);
 
-      // Process properties template if configured
+      const replyMessage: ServiceBusMessage = { body: parsedBody };
+
+      if (templateAppProps) {
+        replyMessage.applicationProperties = templateAppProps;
+      }
+
+      // propertiesTemplate overrides applicationProperties from body template if configured
       if (currentRule.reply.propertiesTemplate) {
         replyMessage.applicationProperties = this.templateService.processPropertiesTemplate(
           currentRule.reply.propertiesTemplate,
@@ -305,12 +320,9 @@ export class AutoReplyListenerService implements OnModuleDestroy {
       const sender = sbClient.createSender(replyTarget);
       try {
         for (let i = 0; i < replyCount; i++) {
-          const msg: typeof replyMessage = {
-            ...replyMessage,
-            messageId: i === 0 ? replyMessageId : this.templateService.generateReplyMessageId(),
-          };
-          console.log('Sending reply message:', msg?.body);
-          await sender.sendMessages(msg?.body);
+          const msg: typeof replyMessage = { ...replyMessage };
+          this.logger.log('Sending reply message:', msg);
+          await sender.sendMessages(msg);
           this.logger.debug(`Sent reply ${i + 1}/${replyCount} to "${replyTarget}"`);
           if (i < replyCount - 1 && currentRule.reply.delayMs > 0) {
             await this.delay(currentRule.reply.delayMs);
@@ -401,15 +413,25 @@ export class AutoReplyListenerService implements OnModuleDestroy {
     return JSON.stringify(message.body);
   }
 
-  private parseReplyBody(body: string, contentType: string): unknown {
+  private parseReplyTemplate(
+    template: string,
+    contentType: string,
+  ): { body: unknown; applicationProperties?: Record<string, string | number | boolean | Date> } {
     if (contentType === 'application/json') {
       try {
-        return JSON.parse(body);
+        const parsed = JSON.parse(template);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && 'body' in parsed) {
+          return {
+            body: parsed.body,
+            applicationProperties: parsed.applicationProperties as Record<string, string | number | boolean | Date> | undefined,
+          };
+        }
+        return { body: parsed };
       } catch {
-        return body;
+        return { body: template };
       }
     }
-    return body;
+    return { body: template };
   }
 
   private delay(ms: number): Promise<void> {
