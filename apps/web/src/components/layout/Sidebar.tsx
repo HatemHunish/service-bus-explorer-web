@@ -10,6 +10,7 @@ import {
   Bell,
   Zap,
   RefreshCw,
+  Reply,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/common/Button';
@@ -199,6 +200,20 @@ export function Sidebar() {
               <Bell className="h-4 w-4 text-purple-500" />
               <span>Notification Hubs</span>
             </button>
+          </div>
+
+          {/* Auto-Reply Section */}
+          <div className="mb-2">
+            <Link
+              to="/auto-reply"
+              className={cn(
+                'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent',
+                location.pathname === '/auto-reply' && 'bg-accent'
+              )}
+            >
+              <Reply className="h-4 w-4 text-orange-500" />
+              <span>Auto-Reply</span>
+            </Link>
           </div>
         </div>
       </ScrollArea>

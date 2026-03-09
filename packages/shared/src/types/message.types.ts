@@ -46,7 +46,10 @@ export interface IReceivedMessage {
   deadLetterErrorDescription?: string;
   body: string;
   bodyType: MessageBodyType;
-  applicationProperties: Record<string, unknown>;
+  applicationProperties?: Record<string, unknown>;
+  // AMQP protocol uses 'userProperties' while Azure SDK uses 'applicationProperties'
+  // Both refer to the same thing - custom message properties
+  userProperties?: Record<string, unknown>;
 }
 
 export interface SendMessageDto {

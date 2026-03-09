@@ -61,7 +61,7 @@ A modern web-based Azure Service Bus Explorer built with React and NestJS. This 
    ```
 
    This will start:
-   - API server at http://localhost:3001
+   - API server at http://localhost:3002
    - Web app at http://localhost:5173
 
 4. **Build for production**:
@@ -102,7 +102,7 @@ service-bus-explorer-web/
 ## API Documentation
 
 When running the API server, Swagger documentation is available at:
-http://localhost:3001/api/docs
+http://localhost:3002/api/docs
 
 ## License
 

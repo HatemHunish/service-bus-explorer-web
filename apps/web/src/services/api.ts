@@ -142,3 +142,38 @@ export const rulesApi = {
   delete: (topicName: string, subscriptionName: string, name: string) =>
     api.delete(`/service-bus/topics/${encodeURIComponent(topicName)}/subscriptions/${encodeURIComponent(subscriptionName)}/rules/${encodeURIComponent(name)}`),
 };
+
+// Auto-Reply API
+export const autoReplyApi = {
+  // Rules CRUD
+  listRules: (connectionId?: string) =>
+    api.get<any[]>(`/auto-reply/rules${connectionId ? `?connectionId=${connectionId}` : ''}`),
+  getRule: (id: string) => api.get<any>(`/auto-reply/rules/${id}`),
+  createRule: (data: any) => api.post<any>('/auto-reply/rules', data),
+  updateRule: (id: string, data: any) => api.put<any>(`/auto-reply/rules/${id}`, data),
+  deleteRule: (id: string) => api.delete(`/auto-reply/rules/${id}`),
+
+  // Enable/Disable
+  enableRule: (id: string) => api.post<any>(`/auto-reply/rules/${id}/enable`),
+  disableRule: (id: string) => api.post<any>(`/auto-reply/rules/${id}/disable`),
+
+  // Listener control
+  startListener: (id: string) => api.post<any>(`/auto-reply/rules/${id}/start`),
+  stopListener: (id: string) => api.post<any>(`/auto-reply/rules/${id}/stop`),
+  getListenerStatus: (id: string) => api.get<any>(`/auto-reply/rules/${id}/listener-status`),
+  getAllListenerStatuses: () => api.get<any[]>('/auto-reply/listeners/status'),
+  getActiveListeners: () => api.get<any[]>('/auto-reply/listeners/active'),
+
+  // Activity log
+  getActivityLog: (ruleId: string, limit = 100, offset = 0) =>
+    api.get<any[]>(`/auto-reply/rules/${ruleId}/activity?limit=${limit}&offset=${offset}`),
+  getRecentActivity: (limit = 50) => api.get<any[]>(`/auto-reply/activity/recent?limit=${limit}`),
+  clearActivityLog: (ruleId: string) => api.delete(`/auto-reply/rules/${ruleId}/activity`),
+  resendReply: (ruleId: string, logId: string) =>
+    api.post<{ messageId: string }>(`/auto-reply/rules/${ruleId}/activity/${logId}/resend`),
+
+  // Template testing
+  testTemplate: (template: string, sampleMessage: any) =>
+    api.post<any>('/auto-reply/template/test', { template, sampleMessage }),
+  getAvailableVariables: () => api.get<any>('/auto-reply/template/variables'),
+};

@@ -5,3 +5,4 @@ export * from './event-hubs.types';
 export * from './event-grid.types';
 export * from './notification-hubs.types';
 export * from './relay.types';
+export * from './auto-reply.types';

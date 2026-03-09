@@ -8,6 +8,7 @@ import { NotificationHubsModule } from './modules/notification-hubs/notification
 import { RelaysModule } from './modules/relays/relays.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
 import { WebSocketModule } from './modules/websocket/websocket.module';
+import { AutoReplyModule } from './modules/auto-reply/auto-reply.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { WebSocketModule } from './modules/websocket/websocket.module';
     RelaysModule,
     ImportExportModule,
     WebSocketModule,
+    AutoReplyModule,
   ],
 })
 export class AppModule {}

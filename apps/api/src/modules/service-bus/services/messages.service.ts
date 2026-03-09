@@ -64,9 +64,10 @@ export class MessagesService {
   async sendToTopic(topicName: string, message: ISendMessage): Promise<void> {
     const client = this.getClient();
     const sender = client.createSender(topicName);
-
+    console.log('Preparing to send message to topic:', topicName);
     try {
       const sbMessage = this.createServiceBusMessage(message);
+      console.log('Sending message to topic:', sbMessage);
       await sender.sendMessages(sbMessage);
     } finally {
       await sender.close();
@@ -435,6 +436,8 @@ export class MessagesService {
       body: bodyStr,
       bodyType,
       applicationProperties: msg.applicationProperties as Record<string, unknown> || {},
+      // AMQP protocol may use 'userProperties' instead of 'applicationProperties'
+      userProperties: (msg as any).userProperties as Record<string, unknown> || undefined,
     };
   };
 

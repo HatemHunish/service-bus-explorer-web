@@ -1,8 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
 import { useState } from 'react';
-import { RefreshCw, Send, Plus, Radio } from 'lucide-react';
+import { RefreshCw, Plus, Radio, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { useTopic, useSubscriptions, useSendTopicMessage } from '@/hooks/useServiceBus';
+import { MessageEditor, SendMessageData } from '@/components/messages/MessageEditor';
 import { toast } from '@/components/common/Toaster';
 
 export function TopicDetailsPage() {
@@ -14,24 +15,30 @@ export function TopicDetailsPage() {
   const sendMessage = useSendTopicMessage();
 
   const [activeTab, setActiveTab] = useState<'properties' | 'subscriptions' | 'send'>('properties');
-  const [messageBody, setMessageBody] = useState('');
 
-  const handleSend = async () => {
-    if (!messageBody.trim()) {
-      toast('Please enter a message body', 'destructive');
-      return;
-    }
-
+  const handleSendMessage = async (message: SendMessageData) => {
     try {
       await sendMessage.mutateAsync({
         name: decodedName,
         message: {
-          body: messageBody,
-          bodyType: 'text',
+          body: message.body,
+          bodyType: message.bodyType,
+          messageId: message.messageId,
+          correlationId: message.correlationId,
+          sessionId: message.sessionId,
+          partitionKey: message.partitionKey,
+          contentType: message.contentType,
+          subject: message.label,
+          to: message.to,
+          replyTo: message.replyTo,
+          replyToSessionId: message.replyToSessionId,
+          timeToLive: message.timeToLive,
+          scheduledEnqueueTime: message.scheduledEnqueueTime ? new Date(message.scheduledEnqueueTime) : undefined,
+          applicationProperties: message.applicationProperties,
         },
       });
       toast('Message sent successfully');
-      setMessageBody('');
+      refetchSubs();
     } catch (error: any) {
       toast(error.message || 'Failed to send message', 'destructive');
     }
@@ -131,6 +138,19 @@ export function TopicDetailsPage() {
 
       {activeTab === 'subscriptions' && (
         <div className="space-y-4">
+          {!subscriptions?.length && (
+            <div className="flex items-start gap-3 rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-4">
+              <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-yellow-700 dark:text-yellow-400">No subscriptions configured</h4>
+                <p className="text-sm text-yellow-600 dark:text-yellow-500 mt-1">
+                  Messages sent to this topic cannot be viewed without a subscription.
+                  Create a subscription to start receiving and viewing messages.
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="flex justify-end">
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -143,7 +163,8 @@ export function TopicDetailsPage() {
               <Radio className="mx-auto h-12 w-12 text-muted-foreground" />
               <h3 className="mt-4 text-lg font-semibold">No subscriptions</h3>
               <p className="mt-2 text-muted-foreground">
-                Create a subscription to receive messages from this topic
+                Create a subscription to receive messages from this topic.
+                Without a subscription, messages sent to this topic will be lost.
               </p>
             </div>
           ) : (
@@ -201,23 +222,23 @@ export function TopicDetailsPage() {
 
       {activeTab === 'send' && (
         <div className="rounded-lg border bg-card p-4">
-          <h3 className="font-semibold">Send Message to Topic</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Message will be delivered to all subscriptions
-          </p>
-          <div className="mt-4 space-y-4">
-            <textarea
-              className="w-full rounded-md border bg-background px-3 py-2"
-              rows={6}
-              placeholder="Message body..."
-              value={messageBody}
-              onChange={(e) => setMessageBody(e.target.value)}
-            />
-            <Button onClick={handleSend} disabled={sendMessage.isPending}>
-              <Send className="mr-2 h-4 w-4" />
-              {sendMessage.isPending ? 'Sending...' : 'Send Message'}
-            </Button>
+          <div className="mb-4">
+            <h3 className="font-semibold">Send Message to Topic</h3>
+            <p className="text-sm text-muted-foreground">
+              Message will be delivered to all subscriptions based on their filter rules.
+            </p>
+            {!subscriptions?.length && (
+              <div className="mt-2 flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-500">
+                <AlertTriangle className="h-4 w-4" />
+                <span>Warning: No subscriptions exist. Messages will be lost.</span>
+              </div>
+            )}
           </div>
+          <MessageEditor
+            onSend={handleSendMessage}
+            isLoading={sendMessage.isPending}
+            entityType="topic"
+          />
         </div>
       )}
     </div>

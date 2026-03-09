@@ -43,4 +43,10 @@ export const WS_EVENTS = {
   ENTITY_UPDATE: 'entity:update',
   CONNECTION_STATUS: 'connection:status',
   ERROR: 'error',
+  // Auto-reply events
+  AUTO_REPLY_STARTED: 'auto-reply:started',
+  AUTO_REPLY_STOPPED: 'auto-reply:stopped',
+  AUTO_REPLY_MATCHED: 'auto-reply:matched',
+  AUTO_REPLY_SENT: 'auto-reply:sent',
+  AUTO_REPLY_ERROR: 'auto-reply:error',
 } as const;

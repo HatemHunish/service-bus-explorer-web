@@ -43,7 +43,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = process.env.API_PORT || 3001;
+  const port = process.env.API_PORT || 3002;
   await app.listen(port);
 
   console.log(`🚀 Service Bus Explorer API is running on: http://localhost:${port}`);

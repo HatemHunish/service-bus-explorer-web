@@ -94,6 +94,7 @@ export class ServiceBusGateway implements OnGatewayConnection, OnGatewayDisconne
             subject: message.subject,
             contentType: message.contentType,
             applicationProperties: message.applicationProperties,
+            userProperties: (message as any).userProperties,
           });
 
           // Complete the message

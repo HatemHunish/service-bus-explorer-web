@@ -8,6 +8,6 @@ import { DatabaseService } from './database.service';
 @Module({
   controllers: [ConnectionsController],
   providers: [ConnectionsService, AzureClientFactory, DatabaseService],
-  exports: [ConnectionsService, AzureClientFactory],
+  exports: [ConnectionsService, AzureClientFactory, DatabaseService],
 })
 export class ConnectionsModule {}

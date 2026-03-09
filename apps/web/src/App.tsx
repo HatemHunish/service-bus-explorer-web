@@ -8,6 +8,7 @@ import { TopicsPage } from './pages/TopicsPage';
 import { TopicDetailsPage } from './pages/TopicDetailsPage';
 import { SubscriptionDetailsPage } from './pages/SubscriptionDetailsPage';
 import { EventHubsPage } from './pages/EventHubsPage';
+import { AutoReplyPage } from './pages/AutoReplyPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Toaster } from './components/common/Toaster';
 import { ThemeProvider } from './components/common/ThemeProvider';
@@ -35,6 +36,7 @@ function AppContent() {
         <Route path="topics/:topicName" element={<TopicDetailsPage />} />
         <Route path="topics/:topicName/subscriptions/:subscriptionName" element={<SubscriptionDetailsPage />} />
         <Route path="event-hubs" element={<EventHubsPage />} />
+        <Route path="auto-reply" element={<AutoReplyPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>

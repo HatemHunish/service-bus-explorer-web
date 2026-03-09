@@ -1,16 +1,19 @@
 import { useState } from 'react';
-import { Send, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import Editor from '@monaco-editor/react';
+import { Send, RotateCcw, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/common/Button';
-import { Input } from '@/components/common/Input';
-import { Textarea } from '@/components/common/Textarea';
-import { Select, SelectOption } from '@/components/common/Select';
 import { toast } from '@/components/common/Toaster';
-import { cn } from '@/lib/utils';
 
 interface MessageEditorProps {
   onSend: (message: SendMessageData) => Promise<void>;
   isLoading?: boolean;
   entityType?: 'queue' | 'topic';
+}
+
+export interface ApplicationProperty {
+  key: string;
+  value: string | number | boolean;
+  type: 'string' | 'number' | 'boolean' | 'datetime';
 }
 
 export interface SendMessageData {
@@ -27,321 +30,217 @@ export interface SendMessageData {
   replyToSessionId?: string;
   timeToLive?: string;
   scheduledEnqueueTime?: string;
-  applicationProperties?: Record<string, any>;
+  applicationProperties?: ApplicationProperty[];
 }
 
+const DEFAULT_MESSAGE = `{
+  "body": {
+    "message": "Hello, Service Bus!",
+    "timestamp": "2024-01-01T00:00:00Z"
+  },
+  "applicationProperties": {
+    "eventType": "TestEvent",
+    "version": 1,
+    "isTest": true
+  },
+  "contentType": "application/json",
+  "subject": "TestMessage"
+}`;
+
+const MESSAGE_SCHEMA_HELP = `// Message Structure:
+// {
+//   "body": { ... } | "string" | any,     // Required: Message body (any JSON value)
+//   "applicationProperties": {             // Optional: Custom properties
+//     "key": "string" | number | boolean
+//   },
+//   "messageId": "string",                 // Optional: Custom message ID
+//   "correlationId": "string",             // Optional: For request-reply patterns
+//   "sessionId": "string",                 // Optional: For session-enabled entities
+//   "partitionKey": "string",              // Optional: For partitioned entities
+//   "contentType": "string",               // Optional: e.g., "application/json"
+//   "subject": "string",                   // Optional: Message label/subject
+//   "to": "string",                        // Optional: Destination address
+//   "replyTo": "string",                   // Optional: Reply address
+//   "replyToSessionId": "string",          // Optional: Reply session
+//   "timeToLive": "string",                // Optional: e.g., "PT1H" (1 hour)
+//   "scheduledEnqueueTime": "ISO date"     // Optional: Schedule message
+// }
+
+`;
+
 export function MessageEditor({ onSend, isLoading, entityType = 'queue' }: MessageEditorProps) {
-  const [body, setBody] = useState('');
-  const [bodyType, setBodyType] = useState<'text' | 'json' | 'xml'>('text');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showCustomProps, setShowCustomProps] = useState(false);
+  const [messageJson, setMessageJson] = useState(DEFAULT_MESSAGE);
+  const [copied, setCopied] = useState(false);
 
-  // Advanced properties
-  const [messageId, setMessageId] = useState('');
-  const [correlationId, setCorrelationId] = useState('');
-  const [sessionId, setSessionId] = useState('');
-  const [partitionKey, setPartitionKey] = useState('');
-  const [contentType, setContentType] = useState('');
-  const [label, setLabel] = useState('');
-  const [to, setTo] = useState('');
-  const [replyTo, setReplyTo] = useState('');
-  const [replyToSessionId, setReplyToSessionId] = useState('');
-  const [timeToLive, setTimeToLive] = useState('');
-  const [scheduledEnqueueTime, setScheduledEnqueueTime] = useState('');
-
-  // Custom properties
-  const [customProps, setCustomProps] = useState<Array<{ key: string; value: string; type: string }>>([]);
-
-  const handleAddCustomProp = () => {
-    setCustomProps([...customProps, { key: '', value: '', type: 'string' }]);
+  const handleFormat = () => {
+    try {
+      const parsed = JSON.parse(messageJson);
+      setMessageJson(JSON.stringify(parsed, null, 2));
+    } catch (e) {
+      toast(`Invalid JSON: ${(e as Error).message}`, 'destructive');
+    }
   };
 
-  const handleRemoveCustomProp = (index: number) => {
-    setCustomProps(customProps.filter((_, i) => i !== index));
+  const handleReset = () => {
+    setMessageJson(DEFAULT_MESSAGE);
   };
 
-  const handleCustomPropChange = (index: number, field: 'key' | 'value' | 'type', value: string) => {
-    const updated = [...customProps];
-    updated[index][field] = value;
-    setCustomProps(updated);
+  const handleCopySchema = async () => {
+    await navigator.clipboard.writeText(MESSAGE_SCHEMA_HELP);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleSend = async () => {
-    if (!body.trim()) {
-      toast('Please enter a message body', 'destructive');
+    // Parse and validate JSON
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(messageJson);
+    } catch (e) {
+      toast(`Invalid JSON: ${(e as Error).message}`, 'destructive');
       return;
     }
 
-    // Build application properties
-    const applicationProperties: Record<string, any> = {};
-    customProps.forEach(({ key, value, type }) => {
-      if (key.trim()) {
-        let typedValue: any = value;
-        switch (type) {
-          case 'number':
-            typedValue = Number(value);
-            break;
-          case 'boolean':
-            typedValue = value.toLowerCase() === 'true';
-            break;
-          case 'json':
-            try {
-              typedValue = JSON.parse(value);
-            } catch {
-              typedValue = value;
-            }
-            break;
-        }
-        applicationProperties[key] = typedValue;
-      }
-    });
+    // Validate required body field
+    if (parsed.body === undefined) {
+      toast('Message must have a "body" field', 'destructive');
+      return;
+    }
 
+    // Determine body type and stringify if needed
+    let bodyStr: string;
+    let bodyType: 'text' | 'json' | 'xml' = 'text';
+
+    if (typeof parsed.body === 'object' && parsed.body !== null) {
+      bodyStr = JSON.stringify(parsed.body);
+      bodyType = 'json';
+    } else if (typeof parsed.body === 'string') {
+      bodyStr = parsed.body;
+      // Try to detect if it's JSON or XML
+      if (parsed.body.trim().startsWith('{') || parsed.body.trim().startsWith('[')) {
+        try {
+          JSON.parse(parsed.body);
+          bodyType = 'json';
+        } catch {
+          bodyType = 'text';
+        }
+      } else if (parsed.body.trim().startsWith('<')) {
+        bodyType = 'xml';
+      }
+    } else {
+      bodyStr = JSON.stringify(parsed.body);
+      bodyType = 'json';
+    }
+
+    // Build application properties with type inference
+    const applicationProperties: ApplicationProperty[] = [];
+    if (parsed.applicationProperties && typeof parsed.applicationProperties === 'object') {
+      for (const [key, value] of Object.entries(parsed.applicationProperties as Record<string, unknown>)) {
+        let propType: 'string' | 'number' | 'boolean' | 'datetime' = 'string';
+        let propValue: string | number | boolean = String(value);
+
+        if (typeof value === 'number') {
+          propType = 'number';
+          propValue = value;
+        } else if (typeof value === 'boolean') {
+          propType = 'boolean';
+          propValue = value;
+        } else if (typeof value === 'string') {
+          propType = 'string';
+          propValue = value;
+        }
+
+        applicationProperties.push({ key, value: propValue, type: propType });
+      }
+    }
+
+    // Build the message data
     const message: SendMessageData = {
-      body,
+      body: bodyStr,
       bodyType,
-      ...(messageId && { messageId }),
-      ...(correlationId && { correlationId }),
-      ...(sessionId && { sessionId }),
-      ...(partitionKey && { partitionKey }),
-      ...(contentType && { contentType }),
-      ...(label && { label }),
-      ...(to && { to }),
-      ...(replyTo && { replyTo }),
-      ...(replyToSessionId && { replyToSessionId }),
-      ...(timeToLive && { timeToLive }),
-      ...(scheduledEnqueueTime && { scheduledEnqueueTime }),
-      ...(Object.keys(applicationProperties).length > 0 && { applicationProperties }),
+      ...(parsed.messageId && { messageId: String(parsed.messageId) }),
+      ...(parsed.correlationId && { correlationId: String(parsed.correlationId) }),
+      ...(parsed.sessionId && { sessionId: String(parsed.sessionId) }),
+      ...(parsed.partitionKey && { partitionKey: String(parsed.partitionKey) }),
+      ...(parsed.contentType && { contentType: String(parsed.contentType) }),
+      ...(parsed.subject && { label: String(parsed.subject) }),
+      ...(parsed.label && { label: String(parsed.label) }),
+      ...(parsed.to && { to: String(parsed.to) }),
+      ...(parsed.replyTo && { replyTo: String(parsed.replyTo) }),
+      ...(parsed.replyToSessionId && { replyToSessionId: String(parsed.replyToSessionId) }),
+      ...(parsed.timeToLive && { timeToLive: String(parsed.timeToLive) }),
+      ...(parsed.scheduledEnqueueTime && { scheduledEnqueueTime: String(parsed.scheduledEnqueueTime) }),
+      ...(applicationProperties.length > 0 && { applicationProperties }),
     };
 
     await onSend(message);
   };
 
-  const formatJson = () => {
-    try {
-      const parsed = JSON.parse(body);
-      setBody(JSON.stringify(parsed, null, 2));
-      setBodyType('json');
-    } catch {
-      toast('Invalid JSON', 'destructive');
-    }
-  };
-
   return (
-    <div className="space-y-4">
-      {/* Body Type Selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium">Body Type:</span>
-        {(['text', 'json', 'xml'] as const).map((type) => (
+    <div className="space-y-3">
+      {/* Header with actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">Message JSON</span>
           <button
-            key={type}
-            onClick={() => setBodyType(type)}
-            className={cn(
-              'rounded px-3 py-1 text-sm font-medium transition-colors',
-              bodyType === type
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80'
-            )}
+            onClick={handleCopySchema}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            title="Copy schema reference"
           >
-            {type.toUpperCase()}
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 text-green-500" />
+                <span>Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                <span>Schema</span>
+              </>
+            )}
           </button>
-        ))}
-        {bodyType === 'json' && (
-          <Button variant="outline" size="sm" onClick={formatJson}>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleReset}>
+            <RotateCcw className="mr-1 h-3 w-3" />
+            Reset
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleFormat}>
             Format
           </Button>
-        )}
+        </div>
       </div>
 
-      {/* Message Body */}
-      <div>
-        <label className="text-sm font-medium">Message Body</label>
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder={
-            bodyType === 'json'
-              ? '{"key": "value"}'
-              : bodyType === 'xml'
-              ? '<root><message>Hello</message></root>'
-              : 'Enter your message...'
-          }
-          className="mt-1 min-h-[200px] font-mono text-sm"
+      {/* Monaco Editor */}
+      <div className="rounded-lg border overflow-hidden">
+        <Editor
+          height="350px"
+          language="json"
+          value={messageJson}
+          onChange={(val) => setMessageJson(val || '')}
+          theme="vs-dark"
+          options={{
+            minimap: { enabled: false },
+            lineNumbers: 'on',
+            fontSize: 13,
+            wordWrap: 'on',
+            automaticLayout: true,
+            scrollBeyondLastLine: false,
+            tabSize: 2,
+            formatOnPaste: true,
+          }}
         />
       </div>
 
-      {/* Advanced Properties Toggle */}
-      <button
-        onClick={() => setShowAdvanced(!showAdvanced)}
-        className="flex w-full items-center gap-2 rounded-lg border p-3 text-left font-medium hover:bg-muted/50"
-      >
-        {showAdvanced ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        Advanced Properties
-      </button>
-
-      {showAdvanced && (
-        <div className="grid gap-4 rounded-lg border p-4 md:grid-cols-2">
-          <div>
-            <label className="text-sm font-medium">Message ID</label>
-            <Input
-              value={messageId}
-              onChange={(e) => setMessageId(e.target.value)}
-              placeholder="Auto-generated if empty"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Correlation ID</label>
-            <Input
-              value={correlationId}
-              onChange={(e) => setCorrelationId(e.target.value)}
-              placeholder="For request-reply patterns"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Session ID</label>
-            <Input
-              value={sessionId}
-              onChange={(e) => setSessionId(e.target.value)}
-              placeholder="Required for session-enabled entities"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Partition Key</label>
-            <Input
-              value={partitionKey}
-              onChange={(e) => setPartitionKey(e.target.value)}
-              placeholder="For partitioned entities"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Content Type</label>
-            <Input
-              value={contentType}
-              onChange={(e) => setContentType(e.target.value)}
-              placeholder="e.g., application/json"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Label / Subject</label>
-            <Input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="Message label"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">To</label>
-            <Input
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="Destination address"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Reply To</label>
-            <Input
-              value={replyTo}
-              onChange={(e) => setReplyTo(e.target.value)}
-              placeholder="Reply address"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Reply To Session ID</label>
-            <Input
-              value={replyToSessionId}
-              onChange={(e) => setReplyToSessionId(e.target.value)}
-              placeholder="Reply session"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium">Time To Live</label>
-            <Input
-              value={timeToLive}
-              onChange={(e) => setTimeToLive(e.target.value)}
-              placeholder="e.g., PT1H (1 hour) or P1D (1 day)"
-              className="mt-1"
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="text-sm font-medium">Scheduled Enqueue Time</label>
-            <Input
-              type="datetime-local"
-              value={scheduledEnqueueTime}
-              onChange={(e) => setScheduledEnqueueTime(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Custom Properties Toggle */}
-      <button
-        onClick={() => setShowCustomProps(!showCustomProps)}
-        className="flex w-full items-center gap-2 rounded-lg border p-3 text-left font-medium hover:bg-muted/50"
-      >
-        {showCustomProps ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        Custom Properties
-        {customProps.length > 0 && (
-          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
-            {customProps.length}
-          </span>
-        )}
-      </button>
-
-      {showCustomProps && (
-        <div className="space-y-2 rounded-lg border p-4">
-          {customProps.map((prop, index) => (
-            <div key={index} className="flex gap-2">
-              <Input
-                value={prop.key}
-                onChange={(e) => handleCustomPropChange(index, 'key', e.target.value)}
-                placeholder="Key"
-                className="flex-1"
-              />
-              <Input
-                value={prop.value}
-                onChange={(e) => handleCustomPropChange(index, 'value', e.target.value)}
-                placeholder="Value"
-                className="flex-1"
-              />
-              <Select
-                value={prop.type}
-                onChange={(e) => handleCustomPropChange(index, 'type', e.target.value)}
-                className="w-28"
-              >
-                <SelectOption value="string">String</SelectOption>
-                <SelectOption value="number">Number</SelectOption>
-                <SelectOption value="boolean">Boolean</SelectOption>
-                <SelectOption value="json">JSON</SelectOption>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleRemoveCustomProp(index)}
-                className="text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          <Button variant="outline" size="sm" onClick={handleAddCustomProp}>
-            <Plus className="mr-1 h-4 w-4" />
-            Add Property
-          </Button>
-        </div>
-      )}
+      {/* Help text */}
+      <p className="text-xs text-muted-foreground">
+        Define your message as JSON. Use <code className="bg-muted px-1 rounded">body</code> for message content,{' '}
+        <code className="bg-muted px-1 rounded">applicationProperties</code> for custom properties.
+      </p>
 
       {/* Send Button */}
       <div className="flex justify-end">
-        <Button onClick={handleSend} disabled={isLoading || !body.trim()}>
+        <Button onClick={handleSend} disabled={isLoading || !messageJson.trim()}>
           <Send className="mr-2 h-4 w-4" />
           {isLoading ? 'Sending...' : `Send to ${entityType === 'topic' ? 'Topic' : 'Queue'}`}
         </Button>

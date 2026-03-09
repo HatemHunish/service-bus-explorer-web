@@ -1,40 +1,47 @@
 import { useParams } from 'react-router-dom';
 import { useState } from 'react';
-import { RefreshCw, Send, Trash2 } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import { useQueue, useQueueMessages, useQueueDLQMessages, useSendQueueMessage, usePurgeQueue } from '@/hooks/useServiceBus';
+import { MessageItem } from '@/components/messages/MessageItem';
+import { MessageEditor, SendMessageData } from '@/components/messages/MessageEditor';
 import { toast } from '@/components/common/Toaster';
 
 export function QueueDetailsPage() {
   const { queueName } = useParams<{ queueName: string }>();
   const decodedName = decodeURIComponent(queueName || '');
 
-  const { data: queue, isLoading, refetch } = useQueue(decodedName);
-  const { data: messages, refetch: refetchMessages } = useQueueMessages(decodedName, 20);
-  const { data: dlqMessages, refetch: refetchDLQ } = useQueueDLQMessages(decodedName, 20);
+  const { data: queue, isLoading, isError: queueError, refetch } = useQueue(decodedName);
+  const { data: messages, isLoading: messagesLoading, refetch: refetchMessages } = useQueueMessages(decodedName, 20);
+  const { data: dlqMessages, isLoading: dlqLoading, isError: dlqError, refetch: refetchDLQ } = useQueueDLQMessages(decodedName, 20);
   const sendMessage = useSendQueueMessage();
   const purgeQueue = usePurgeQueue();
 
   const [activeTab, setActiveTab] = useState<'properties' | 'messages' | 'dlq'>('properties');
-  const [messageBody, setMessageBody] = useState('');
 
-  const handleSend = async () => {
-    if (!messageBody.trim()) {
-      toast('Please enter a message body', 'destructive');
-      return;
-    }
-
+  const handleSendMessage = async (message: SendMessageData) => {
     try {
       await sendMessage.mutateAsync({
         name: decodedName,
         message: {
-          body: messageBody,
-          bodyType: 'text',
+          body: message.body,
+          bodyType: message.bodyType,
+          messageId: message.messageId,
+          correlationId: message.correlationId,
+          sessionId: message.sessionId,
+          partitionKey: message.partitionKey,
+          contentType: message.contentType,
+          subject: message.label,
+          to: message.to,
+          replyTo: message.replyTo,
+          replyToSessionId: message.replyToSessionId,
+          timeToLive: message.timeToLive,
+          scheduledEnqueueTime: message.scheduledEnqueueTime ? new Date(message.scheduledEnqueueTime) : undefined,
+          applicationProperties: message.applicationProperties,
         },
       });
       toast('Message sent successfully');
-      setMessageBody('');
-      refetchMessages();
+      setTimeout(() => refetchMessages(), 500);
     } catch (error: any) {
       toast(error.message || 'Failed to send message', 'destructive');
     }
@@ -57,6 +64,17 @@ export function QueueDetailsPage() {
     return <div className="text-center text-muted-foreground">Loading queue details...</div>;
   }
 
+  if (queueError) {
+    return (
+      <div className="text-center">
+        <p className="text-destructive">Failed to load queue details.</p>
+        <Button variant="outline" onClick={() => refetch()} className="mt-2">
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
   if (!queue) {
     return <div className="text-center text-muted-foreground">Queue not found</div>;
   }
@@ -69,7 +87,7 @@ export function QueueDetailsPage() {
           <p className="text-muted-foreground">Queue details and messages</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => { refetch(); refetchMessages(); refetchDLQ(); }}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
@@ -159,47 +177,31 @@ export function QueueDetailsPage() {
         <div className="space-y-4">
           {/* Send Message */}
           <div className="rounded-lg border bg-card p-4">
-            <h3 className="font-semibold">Send Message</h3>
-            <div className="mt-2 flex gap-2">
-              <textarea
-                className="flex-1 rounded-md border bg-background px-3 py-2"
-                rows={3}
-                placeholder="Message body..."
-                value={messageBody}
-                onChange={(e) => setMessageBody(e.target.value)}
-              />
-              <Button onClick={handleSend} disabled={sendMessage.isPending}>
-                <Send className="mr-2 h-4 w-4" />
-                Send
-              </Button>
-            </div>
+            <h3 className="mb-4 font-semibold">Send Message</h3>
+            <MessageEditor
+              onSend={handleSendMessage}
+              isLoading={sendMessage.isPending}
+              entityType="queue"
+            />
           </div>
 
           {/* Messages List */}
           <div className="rounded-lg border">
             <div className="flex items-center justify-between border-b p-3">
               <h3 className="font-semibold">Messages (Peek)</h3>
-              <Button variant="outline" size="sm" onClick={() => refetchMessages()}>
-                <RefreshCw className="mr-1 h-4 w-4" />
-                Refresh
+              <Button variant="outline" size="sm" onClick={() => refetchMessages()} disabled={messagesLoading}>
+                <RefreshCw className={`mr-1 h-4 w-4 ${messagesLoading ? 'animate-spin' : ''}`} />
+                {messagesLoading ? 'Loading...' : 'Refresh'}
               </Button>
             </div>
-            <div className="max-h-96 overflow-auto">
-              {!messages?.length ? (
+            <div className="max-h-[600px] overflow-auto">
+              {messagesLoading ? (
+                <p className="p-4 text-center text-muted-foreground">Loading messages...</p>
+              ) : !messages?.length ? (
                 <p className="p-4 text-center text-muted-foreground">No messages</p>
               ) : (
-                messages.map((msg, i) => (
-                  <div key={msg.sequenceNumber || i} className="border-b p-3 last:border-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">#{msg.sequenceNumber}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(msg.enqueuedTime).toLocaleString()}
-                      </span>
-                    </div>
-                    <pre className="mt-2 max-h-24 overflow-auto rounded bg-muted p-2 text-xs">
-                      {msg.body}
-                    </pre>
-                  </div>
+                messages.map((msg) => (
+                  <MessageItem key={msg.sequenceNumber} message={msg} />
                 ))
               )}
             </div>
@@ -211,37 +213,21 @@ export function QueueDetailsPage() {
         <div className="rounded-lg border">
           <div className="flex items-center justify-between border-b p-3">
             <h3 className="font-semibold">Dead-letter Messages</h3>
-            <Button variant="outline" size="sm" onClick={() => refetchDLQ()}>
-              <RefreshCw className="mr-1 h-4 w-4" />
-              Refresh
+            <Button variant="outline" size="sm" onClick={() => refetchDLQ()} disabled={dlqLoading}>
+              <RefreshCw className={`mr-1 h-4 w-4 ${dlqLoading ? 'animate-spin' : ''}`} />
+              {dlqLoading ? 'Loading...' : 'Refresh'}
             </Button>
           </div>
-          <div className="max-h-96 overflow-auto">
-            {!dlqMessages?.length ? (
+          <div className="max-h-[600px] overflow-auto">
+            {dlqLoading ? (
+              <p className="p-4 text-center text-muted-foreground">Loading dead-letter messages...</p>
+            ) : dlqError ? (
+              <p className="p-4 text-center text-destructive">Failed to load dead-letter messages. Click Refresh to try again.</p>
+            ) : !dlqMessages?.length ? (
               <p className="p-4 text-center text-muted-foreground">No dead-letter messages</p>
             ) : (
-              dlqMessages.map((msg, i) => (
-                <div key={msg.sequenceNumber || i} className="border-b p-3 last:border-0">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">#{msg.sequenceNumber}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(msg.enqueuedTime).toLocaleString()}
-                    </span>
-                  </div>
-                  {msg.deadLetterReason && (
-                    <p className="mt-1 text-sm text-destructive">
-                      Reason: {msg.deadLetterReason}
-                    </p>
-                  )}
-                  {msg.deadLetterErrorDescription && (
-                    <p className="text-xs text-muted-foreground">
-                      {msg.deadLetterErrorDescription}
-                    </p>
-                  )}
-                  <pre className="mt-2 max-h-24 overflow-auto rounded bg-muted p-2 text-xs">
-                    {msg.body}
-                  </pre>
-                </div>
+              dlqMessages.map((msg) => (
+                <MessageItem key={msg.sequenceNumber} message={msg} showDeadLetterInfo />
               ))
             )}
           </div>
