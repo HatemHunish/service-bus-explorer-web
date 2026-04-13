@@ -34,38 +34,35 @@ export function Sidebar() {
 
   const isExpanded = (section: string) => expandedSections.includes(section);
 
-  if (!activeConnection) {
-    return (
-      <aside className="w-64 border-r bg-card">
-        <div className="flex h-full items-center justify-center p-4 text-center text-sm text-muted-foreground">
-          Connect to a namespace to browse entities
-        </div>
-      </aside>
-    );
-  }
-
   return (
     <aside className="w-64 border-r bg-card flex flex-col">
-      <div className="flex items-center justify-between border-b p-2">
-        <span className="text-sm font-medium">Entities</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-7 w-7"
-          onClick={() => {
-            refetchQueues();
-            refetchTopics();
-          }}
-          title="Refresh"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-      </div>
+      {activeConnection && (
+        <div className="flex items-center justify-between border-b p-2">
+          <span className="text-sm font-medium">Entities</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => {
+              refetchQueues();
+              refetchTopics();
+            }}
+            title="Refresh"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
 
       <ScrollArea className="flex-1">
         <div className="p-2">
-          {/* Queues Section */}
-          <div className="mb-2">
+          {!activeConnection && (
+            <div className="px-2 py-3 text-sm text-muted-foreground">
+              Connect to a namespace to browse entities
+            </div>
+          )}
+          {/* Connection-dependent sections */}
+          {activeConnection && <><div className="mb-2">
             <button
               onClick={() => toggleSection('queues')}
               className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent"
@@ -201,8 +198,9 @@ export function Sidebar() {
               <span>Notification Hubs</span>
             </button>
           </div>
+          </>}
 
-          {/* Auto-Reply Section */}
+          {/* Auto-Reply Section — always visible, has its own connection per rule */}
           <div className="mb-2">
             <Link
               to="/auto-reply"

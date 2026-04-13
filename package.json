@@ -12,12 +12,19 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
     "clean": "turbo run clean && rm -rf node_modules",
     "api:dev": "turbo run dev --filter=api",
-    "web:dev": "turbo run dev --filter=web"
+    "web:dev": "turbo run dev --filter=web",
+    "desktop:dev": "concurrently -k -n API,WEB,ELECTRON -c blue,green,yellow \"pnpm api:dev\" \"pnpm web:dev\" \"wait-on http://localhost:5173 && pnpm --filter @service-bus-explorer/desktop dev\"",
+    "desktop:dist": "bash apps/desktop/scripts/build.sh && pnpm --filter @service-bus-explorer/desktop dist",
+    "desktop:dist:mac": "bash apps/desktop/scripts/build.sh && pnpm --filter @service-bus-explorer/desktop dist:mac",
+    "desktop:dist:win": "bash apps/desktop/scripts/build.sh && pnpm --filter @service-bus-explorer/desktop dist:win",
+    "desktop:dist:linux": "bash apps/desktop/scripts/build.sh && pnpm --filter @service-bus-explorer/desktop dist:linux"
   },
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "prettier": "^3.2.5",
     "turbo": "^2.0.0",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "wait-on": "^9.0.4"
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {

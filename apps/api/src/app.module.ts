@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
 import { ConnectionsModule } from './modules/connections/connections.module';
 import { ServiceBusModule } from './modules/service-bus/service-bus.module';
 import { EventHubsModule } from './modules/event-hubs/event-hubs.module';
@@ -16,6 +17,15 @@ import { AutoReplyModule } from './modules/auto-reply/auto-reply.module';
       isGlobal: true,
       envFilePath: ['.env.local', '.env'],
     }),
+    // Serve the built web app when running inside Electron (STATIC_PATH is set)
+    ...(process.env.STATIC_PATH
+      ? [
+          ServeStaticModule.forRoot({
+            rootPath: process.env.STATIC_PATH,
+            exclude: ['/api/(.*)'],
+          }),
+        ]
+      : []),
     ConnectionsModule,
     ServiceBusModule,
     EventHubsModule,

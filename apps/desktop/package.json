@@ -1,0 +1,23 @@
+{
+  "name": "@service-bus-explorer/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Service Bus Explorer – Desktop App",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json && electron .",
+    "dist": "pnpm run build:all && electron-builder",
+    "dist:mac": "pnpm run build:all && electron-builder --mac",
+    "dist:win": "pnpm run build:all && electron-builder --win",
+    "dist:linux": "pnpm run build:all && electron-builder --linux",
+    "build:all": "bash scripts/build.sh"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
+    "@types/node": "^20.11.0",
+    "electron": "^29.4.6",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.4.0"
+  }
+}

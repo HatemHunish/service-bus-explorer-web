@@ -7,8 +7,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Enable CORS for frontend
+  // In Electron mode (STATIC_PATH set) the web is served from the same origin,
+  // so we allow all — this is a local desktop app, not a public server.
   app.enableCors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: process.env.STATIC_PATH ? true : (process.env.CORS_ORIGIN || 'http://localhost:5173'),
     credentials: true,
   });
 

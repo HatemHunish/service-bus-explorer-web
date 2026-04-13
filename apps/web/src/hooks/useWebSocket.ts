@@ -2,7 +2,11 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useConnectionStore } from '@/store/useConnectionStore';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+// In Electron, the web is served from the same origin as the API, so use that.
+// The preload script sets window.__ELECTRON__ = true.
+const SOCKET_URL = (window as any).__ELECTRON__
+  ? window.location.origin
+  : (import.meta.env.VITE_WS_URL || import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || 'http://localhost:3002');
 
 interface WebSocketState {
   isConnected: boolean;

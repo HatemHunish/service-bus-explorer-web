@@ -2,7 +2,6 @@ import { useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/common/Button';
-import { cn } from '@/utils/cn';
 import { useTestTemplate } from '@/hooks';
 import { toast } from '@/components/common/Toaster';
 

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight, Copy, Check } from 'lucide-react';
-import { cn } from '@/utils/cn';
 import { IReceivedMessage } from '@service-bus-explorer/shared';
 
 interface MessageItemProps {

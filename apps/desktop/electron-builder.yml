@@ -1,0 +1,51 @@
+appId: com.adecco.service-bus-explorer
+productName: Service Bus Explorer
+copyright: Copyright © 2024 Adecco
+
+directories:
+  output: dist-electron
+  buildResources: build
+
+# Files that make up the Electron app itself (main + preload)
+files:
+  - dist/**
+  - package.json
+
+# Pre-built API and web are copied into resources/ by scripts/build.sh
+extraResources:
+  - from: resources/api
+    to: api
+  - from: resources/web
+    to: web
+
+# Keep native .node files outside the asar archive
+asarUnpack:
+  - "**/*.node"
+
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  entitlementsInherit: build/entitlements.mac.plist
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Development
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico

@@ -1,0 +1,5 @@
+dist/
+dist-electron/
+resources/api/
+resources/web/
+node_modules/
